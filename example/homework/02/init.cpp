@@ -31,16 +31,16 @@ void zero_domain(Domain &domain);
 void print_domain(Domain &domain);
 void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank, MPI_Comm comm);
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
 	
-	int ndims = [2];
+	int ndims = 2;
         int rank, size, reorder, my_cart_rank, ierr, nrows, ncols;
 	int dims[ndims];
         int coords[ndims];
-	int wrap_around
-	int MPI_Comm comm2D;
+	int wrap_around;
+	MPI_Comm comm2D;
 	int N,P,Q;
-	int iterations
+	int iterations;
         MPI_Init(&argc,&argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -67,8 +67,8 @@ int main(int argc, char** argv) {
 	}
 
 
-	int local_P = N/P;
-	int local_Q = N/Q;
+	int local_N = N/P;
+	int local_M = N/Q;
 	
 	char** local_grid = (char**)malloc(local_N * sizeof(char*));
        	for (int i = 0; i < local_N; i++) 
@@ -76,8 +76,8 @@ int main(int argc, char** argv) {
         local_grid[i] = (char*)malloc(local_M * sizeof(char));
 	}
 	
-	for (int i = 0; i < local_P; i++) {
-        	for (int j = 0; j < local_Q; j++) {
+	for (int i = 0; i < local_N; i++) {
+        	for (int j = 0; j < local_M; j++) {
             		if ((i + j) % 2 == 0) {
                 		local_grid[i][j] = '*';
             		} else {
@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
 
 	//2D Depomposition  of an NxN world of cells (let space be a dead space and ’*’ is a live space).
 	//Represent cells as char	
-	parrallelize(local_P,local_Q,local_grid,N,iterations,size,rank,MPI_COMM_WORLD);
+	parrallelize(local_N,local_M,local_grid,N,iterations,size,rank,MPI_COMM_WORLD);
 	for (int i = 0; i < local_N; i++) {
 
         free(local_grid[i]);
@@ -127,15 +127,16 @@ void parrallelize(int P, int Q,char** local_grid, int N, int iterations, int siz
    		 even_domain(8,7) = 1;
    		 even_domain(9,7) = 1;
   	}
-	cout << "Initial:"<<endl; print_domain(even_domain);
+	 print_domain(even_domain);
 
   	Domain *odd, *even; // pointer swap magic
   	odd = &odd_domain;
   	even = &even_domain;
 	for(int i = 0; i < iterations;i++){
-		update_grid(*odd, *even, N, rank,COMM_2D);
-		cout << "Iteration #" << i << endl; print_domain(*odd);
-
+		update_domain(*odd, *even, N, rank,COMM_2D);
+		cout << "Iteration #" << i << endl;
+		print_domain(*odd);
+		
     		// swap pointers:
     		Domain *temp = odd;
     		odd  = even;
@@ -143,6 +144,12 @@ void parrallelize(int P, int Q,char** local_grid, int N, int iterations, int siz
 
 	}
 
+}
+void zero_domain(Domain &domain)
+{
+  for(int i = 0; i < domain.rows(); ++i)
+    for(int j = 0; j < domain.cols(); ++j)
+      domain(i,j) = 0;
 }
 void print_domain(Domain &domain)
 {
