@@ -35,7 +35,7 @@ void parallel_code(int P, int Q, int N, int iterations, int size, int myrank, MP
 
 int main(int argc, char **argv)
 {
-  int M, N;
+  int P, Q, N;
   int iterations;
 
   if(argc < 4)
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
   int array[3];
   if(myrank == 0)
   {
-     P = atoi(argv[1]); Q = atoi(argv[2]  N = atoi(argv[3]); iterations = atoi(argv[4]);
+     P = atoi(argv[1]); Q = atoi(argv[2]);  N = atoi(argv[3]); iterations = atoi(argv[4]);
 
      array[0] = P;
      array[1] = Q;
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
   MPI_Finalize();
 }
 
-void parallel_code(int M, int N, int iterations, int size, int myrank, MPI_Comm comm)
+void parallel_code(int P, int Q, int N, int iterations, int size, int myrank, MPI_Comm comm)
 {
     int rows_per_proc = N / P;
     int cols_per_proc = N / Q;
@@ -158,15 +158,15 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
   int n = new_domain.cols();
   int m = new_domain.rows();
 
-  char *top_row = new char[N];
-  char *right_row = new char[M];
-  char *left_row = new char[M];
-  char *bottom_row = new char[N];
-
-  char *top_halo = new char[N];]
-  char *right_halo = new char[M];
-  char *left_halo = new char[M];
-  char *bottom_halo = new char[N];
+  char *top_row = new char[n];
+  char *right_row = new char[m];
+  char *left_row = new char[m];
+  char *bottom_row = new char[n];
+  
+  char *top_halo = new char[n];
+  char *right_halo = new char[m];
+  char *left_halo = new char[m];
+  char *bottom_halo = new char[n];
 
   const int top = 0,topleft = 1,topright = 2,right = 3,left = 4, bottomleft = 5, bottomright = 6, bottom = 7;
 
@@ -183,28 +183,49 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
   {
       right_row[i] = old_domain(i,m-1);
   }
-  MPI_Isend(right_row, m, MPI_CHAR, (myrank-1+size)%size, left, comm, &request[0]);
+  MPI_Isend(right_row, m, MPI_CHAR, (myrank-1+size)%size, left, comm, &request[1]);
   for(int i = 0; i < m; ++i)
   {
       left_row[i] = old_domain(i,0);
   }
-  MPI_Isend(top_row, m, MPI_CHAR, (myrank-1+size)%size, right, comm, &request[0]);
+  MPI_Isend(top_row, m, MPI_CHAR, (myrank-1+size)%size, right, comm, &request[2]);
   for(int i = 0; i < n; ++i)
   {
      bottom_row[i] = old_domain(m-1,i);
   }
-  MPI_Isend(bottom_row, n, MPI_CHAR, (myrank+1)%size, top, comm, &request[1]);
+  MPI_Isend(bottom_row, n, MPI_CHAR, (myrank+1)%size, top, comm, &request[3]);
   
+  
+  char *topleft_row = new char[1];
+  char *topright_row  = new char[1];
+  char *bottomleft_row  = new char[1];
+  char *bottomright_row  = new char[1];
+
+  topleft_row[0] = old_domain(1,1);
+  topright_row[0] = old_domain(m,1);
+  bottomleft_row[0] = old_domain(1,n);
+  bottomright_row[0] = old_domain(m,n);
+  
+  MPI_Isend(topleft_row, 1, MPI_CHAR, (myrank+1)%size, topleft, comm, &request[4]);
+  MPI_Isend(topright_row, 1, MPI_CHAR, (myrank+1)%size, topright, comm, &request[5]);
+  MPI_Isend(bottomleft_row, 1, MPI_CHAR, (myrank+1)%size, topleft, comm, &request[6]);
+  MPI_Isend(bottomright_row, 1, MPI_CHAR, (myrank+1)%size, topright, comm, &request[7]);
+
+  char topleft_halo[1];
+  char topright_halo[1];
+  char bottomleft_halo[1];
+  char bottomright_halo[1];
+
   // send my top row and bottom row to adjacent process
   // receive the halo from top and bottom process
-  MPI_Irecv(top_halo, N, MPI_CHAR,    (myrank+size-1)%size, top, comm, &request[0]);
-  MPI_Irecv(old_domain(1,1), 1, MPI_CHAR,    (myrank+size-1)%size, topleft, comm, &request[1]);
-  MPI_Irecv(old_domain(m,1), 1, MPI_CHAR,    (myrank+size-1)%size, topright, comm, &request[2]);
-  MPI_Irecv(right_halo, 1, MPI_CHAR,    (myrank+size-1)%size, right, comm, &request[3]);
-  MPI_Irecv(left_halo, 1, MPI_CHAR,    (myrank+size-1)%size, left, comm, &request[4]);
-  MPI_Irecv(old_domain(1,n), 1, MPI_CHAR,    (myrank+size-1)%size, bottomleft, comm, &request[5]);
-  MPI_Irecv(old_domain(m,n), 1, MPI_CHAR,    (myrank+size-1)%size, bottomright, comm, &request[6]);
-  MPI_Irecv(bottom_halo, N, MPI_CHAR, (myrank+1)%size, bottom, comm, &request[7]);
+  MPI_Irecv(top_halo, n, MPI_CHAR,    (myrank+size-1)%size, top, comm, &request[0]);
+  MPI_Irecv(topleft_halo, 1, MPI_CHAR,    (myrank+size-1)%size, topleft, comm, &request[1]);
+  MPI_Irecv(topright_halo, 1, MPI_CHAR,    (myrank+size-1)%size, topright, comm, &request[2]);
+  MPI_Irecv(right_halo, m, MPI_CHAR,    (myrank+size-1)%size, right, comm, &request[3]);
+  MPI_Irecv(left_halo, m, MPI_CHAR,    (myrank+size-1)%size, left, comm, &request[4]);
+  MPI_Irecv(bottomleft_halo, 1, MPI_CHAR,    (myrank+size-1)%size, bottomleft, comm, &request[5]);
+  MPI_Irecv(bottomright_halo, 1, MPI_CHAR,    (myrank+size-1)%size, bottomright, comm, &request[6]);
+  MPI_Irecv(bottom_halo, n, MPI_CHAR, (myrank+1)%size, bottom, comm, &request[7]);
 
   MPI_Waitall(16, request, MPI_STATUSES_IGNORE); // complete all 4 transfers
 
@@ -255,8 +276,8 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
             continue;
           // this first implementation is sequental and wraps the vertical
           // and horizontal dimensions without dealing with halos (ghost cells)
-          if(old_domain((0+delta_i),
-                        (j+delta_j+old_domain.rows())%old_domain.rows()))
+          if(old_domain(((j+delta_j+old_domain.rows())%old_domain.rows()),
+                        (0+delta_i)))
              ++neighbor_count;
         }
       }
@@ -271,7 +292,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
         newcell = (neighbor_count == 3) ? 1 : 0;
       else
         newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
-      new_domain(0,j) = newcell;
+      new_domain(j,0) = newcell;
   }
   for(int j = 0; j < new_domain.rows(); ++j)
   {
@@ -284,8 +305,8 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
             continue;
           // this first implementation is sequental and wraps the vertical
           // and horizontal dimensions without dealing with halos (ghost cells)
-          if(old_domain((0+delta_i),
-                        (j+delta_j+old_domain.rows())%old_domain.rows()))
+          if(old_domain(((j+delta_j+old_domain.rows())%old_domain.rows()),
+                        (0+delta_i)))
              ++neighbor_count;
         }
       }
@@ -300,7 +321,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
         newcell = (neighbor_count == 3) ? 1 : 0;
       else
         newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
-      new_domain(0,j) = newcell;
+      new_domain(j,n-1) = newcell;
   }
   // i=m-1:
   for(int j = 0; j < new_domain.cols(); ++j)
@@ -336,7 +357,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
       
       new_domain(m-1,j) = newcell;
   } // int j
-
+ 
   // these update as in sequential case:
   for(int i = 1; i < (new_domain.rows()-1); ++i)
   {
@@ -368,7 +389,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
       new_domain(i,j) = newcell;
     } // int j
   } // int i
-
+  
 
 }
 
