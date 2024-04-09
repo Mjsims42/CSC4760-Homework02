@@ -49,7 +49,7 @@ int main(int argc, char **argv)
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-  int array[3];
+  int array[4];
   if(myrank == 0)
   {
      P = atoi(argv[1]); Q = atoi(argv[2]);  N = atoi(argv[3]); iterations = atoi(argv[4]);
@@ -58,7 +58,6 @@ int main(int argc, char **argv)
      array[1] = Q;
      array[2] = N;
      array[3] = iterations;
-    
   }
   MPI_Bcast(array, 4, MPI_INT, 0, MPI_COMM_WORLD);
   if(myrank != 0)
@@ -99,7 +98,7 @@ void parallel_code(int P, int Q, int N, int iterations, int size, int myrank, MP
     even_domain(0,(n-1)) = 1;
     even_domain(0,0)     = 1;
     even_domain(0,1)     = 1;
-    
+
     even_domain(3,5) = 1;
     even_domain(3,6) = 1;
     even_domain(3,7) = 1;
@@ -183,12 +182,12 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
   {
       right_row[i] = old_domain(i,m-1);
   }
-  MPI_Isend(right_row, m, MPI_CHAR, (myrank-1+size)%size, left, comm, &request[1]);
+  MPI_Isend(right_row, m, MPI_CHAR, (myrank+1)%size, left, comm, &request[1]);
   for(int i = 0; i < m; ++i)
   {
       left_row[i] = old_domain(i,0);
   }
-  MPI_Isend(top_row, m, MPI_CHAR, (myrank-1+size)%size, right, comm, &request[2]);
+  MPI_Isend(left_row, m, MPI_CHAR, (myrank-1+size)%size, right, comm, &request[2]);
   for(int i = 0; i < n; ++i)
   {
      bottom_row[i] = old_domain(m-1,i);
@@ -277,7 +276,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
           // this first implementation is sequental and wraps the vertical
           // and horizontal dimensions without dealing with halos (ghost cells)
           if(old_domain(((j+delta_j+old_domain.rows())%old_domain.rows()),
-                        (0+delta_i)))
+                        (0+delta_j)))
              ++neighbor_count;
         }
       }
@@ -306,7 +305,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
           // this first implementation is sequental and wraps the vertical
           // and horizontal dimensions without dealing with halos (ghost cells)
           if(old_domain(((j+delta_j+old_domain.rows())%old_domain.rows()),
-                        (0+delta_i)))
+                        (n-1+delta_i)))
              ++neighbor_count;
         }
       }
@@ -323,6 +322,8 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
         newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
       new_domain(j,n-1) = newcell;
   }
+  
+
   // i=m-1:
   for(int j = 0; j < new_domain.cols(); ++j)
   {
@@ -337,7 +338,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
 
 	  // this first implementation is sequental and wraps the vertical
 	  // and horizontal dimensions without dealing with halos (ghost cells)
-	  if(old_domain((m-1+delta_i),
+	  if(old_domain((m-1 + delta_i),
 			(j+delta_j+old_domain.cols())%old_domain.cols()))
 	     ++neighbor_count;
 	}
@@ -347,7 +348,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
         if(bottom_halo[(j+delta_j+old_domain.cols())%old_domain.cols()])
 	  ++neighbor_count;
       }
-      
+     	 
       char mycell = old_domain(m-1,j);
       char newcell = 0;
       if(mycell == 0)
@@ -357,7 +358,6 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
       
       new_domain(m-1,j) = newcell;
   } // int j
- 
   // these update as in sequential case:
   for(int i = 1; i < (new_domain.rows()-1); ++i)
   {
@@ -390,6 +390,22 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
     } // int j
   } // int i
   
+    delete[] top_row;
+    delete[] right_row;
+    delete[] left_row;
+    delete[] bottom_row;
+    delete[] top_halo;
+    delete[] right_halo;
+    delete[] left_halo;
+    delete[] bottom_halo;
+    delete[] topleft_row;
+    delete[] topright_row;
+    delete[] bottomleft_row;
+    delete[] bottomright_row;
+    delete[] topleft_halo;
+    delete[] topright_halo;
+    delete[] bottomleft_halo;
+    delete[] bottomright_halo; 
 
 }
 
