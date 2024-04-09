@@ -77,14 +77,14 @@ int main(int argc, char **argv)
 
 void parallel_code(int P, int Q, int N, int iterations, int size, int myrank, MPI_Comm comm)
 {
-    int rows_per_proc = N / P;
-    int cols_per_proc = N / Q;
-    int extra_rows = N % P;
-    int extra_cols = N % Q;
+  int rows_per_proc = N / P;
+  int cols_per_proc = N / Q;
+  int extra_rows = N % P;
+  int extra_cols = N % Q;
 
 
-    int n = (myrank / Q < extra_rows) ? (rows_per_proc + 1) : rows_per_proc;
-    int m = (myrank % Q < extra_cols) ? (cols_per_proc + 1) : cols_per_proc;
+  int n = (myrank / Q < extra_rows) ? (rows_per_proc + 1) : rows_per_proc;
+  int m = (myrank % Q < extra_cols) ? (cols_per_proc + 1) : cols_per_proc;
   
   Domain even_domain(m,n,"even Domain");
   Domain odd_domain(m,n,"odd Domain");
@@ -206,26 +206,26 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
   bottomleft_row[0] = old_domain(1,n);
   bottomright_row[0] = old_domain(m,n);
   
-  MPI_Isend(topleft_row, 1, MPI_CHAR, (myrank+1)%size, topleft, comm, &request[4]);
-  MPI_Isend(topright_row, 1, MPI_CHAR, (myrank+1)%size, topright, comm, &request[5]);
-  MPI_Isend(bottomleft_row, 1, MPI_CHAR, (myrank+1)%size, topleft, comm, &request[6]);
-  MPI_Isend(bottomright_row, 1, MPI_CHAR, (myrank+1)%size, topright, comm, &request[7]);
+  MPI_Isend(topleft_row, 1, MPI_CHAR, (myrank + size - n - 1)%size, topleft, comm, &request[4]);
+  MPI_Isend(topright_row, 1, MPI_CHAR, (myrank + size - n + 1)%size, topright, comm, &request[5]);
+  MPI_Isend(bottomleft_row, 1, MPI_CHAR, (myrank + n - 1)%size, topleft, comm, &request[6]);
+  MPI_Isend(bottomright_row, 1, MPI_CHAR, (myrank + n + 1)%size, topright, comm, &request[7]);
 
-  char topleft_halo[1];
-  char topright_halo[1];
-  char bottomleft_halo[1];
-  char bottomright_halo[1];
+  char *topleft_halo = new char[1];
+  char *topright_halo = new char[1];
+  char *bottomleft_halo = new char[1];
+  char *bottomright_halo = new char[1];
 
   // send my top row and bottom row to adjacent process
   // receive the halo from top and bottom process
-  MPI_Irecv(top_halo, n, MPI_CHAR,    (myrank+size-1)%size, top, comm, &request[0]);
-  MPI_Irecv(topleft_halo, 1, MPI_CHAR,    (myrank+size-1)%size, topleft, comm, &request[1]);
-  MPI_Irecv(topright_halo, 1, MPI_CHAR,    (myrank+size-1)%size, topright, comm, &request[2]);
-  MPI_Irecv(right_halo, m, MPI_CHAR,    (myrank+size-1)%size, right, comm, &request[3]);
-  MPI_Irecv(left_halo, m, MPI_CHAR,    (myrank+size-1)%size, left, comm, &request[4]);
-  MPI_Irecv(bottomleft_halo, 1, MPI_CHAR,    (myrank+size-1)%size, bottomleft, comm, &request[5]);
-  MPI_Irecv(bottomright_halo, 1, MPI_CHAR,    (myrank+size-1)%size, bottomright, comm, &request[6]);
-  MPI_Irecv(bottom_halo, n, MPI_CHAR, (myrank+1)%size, bottom, comm, &request[7]);
+  MPI_Irecv(top_halo, n, MPI_CHAR,    (myrank+size-1)%size, top, comm, &request[8]);
+  MPI_Irecv(topleft_halo, 1, MPI_CHAR,    (myrank + size - n - 1)%size, topleft, comm, &request[9]);
+  MPI_Irecv(topright_halo, 1, MPI_CHAR,    (myrank + size - n + 1)%size, topright, comm, &request[10]);
+  MPI_Irecv(right_halo, m, MPI_CHAR,    (myrank+1)%size, right, comm, &request[11]);
+  MPI_Irecv(left_halo, m, MPI_CHAR,    (myrank+size-1)%size, left, comm, &request[12]);
+  MPI_Irecv(bottomleft_halo, 1, MPI_CHAR,    (myrank + n - 1)%size, bottomleft, comm, &request[13]);
+  MPI_Irecv(bottomright_halo, 1, MPI_CHAR,    (myrank + n + 1)%size, bottomright, comm, &request[14]);
+  MPI_Irecv(bottom_halo, n, MPI_CHAR, (myrank+1)%size, bottom, comm, &request[15]);
 
   MPI_Waitall(16, request, MPI_STATUSES_IGNORE); // complete all 4 transfers
 
