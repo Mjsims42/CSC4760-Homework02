@@ -38,7 +38,7 @@ int main(int argc, char **argv)
   int P, Q, N;
   int iterations;
 
-  if(argc < 4)
+  if(argc < 5)
   {
     cout << "usage: " << argv[0] << " M N iterations" << endl;
     exit(0);
@@ -93,24 +93,16 @@ void parallel_code(int P, int Q, int N, int iterations, int size, int myrank, MP
 
   // fill in even_domain with something meaningful (initial state)
   // this requires min size for default values to fit:
-  if((n >= 8) && (m >= 10))
+  if((n >= 2) && (m >= 2))
   {
     even_domain(0,(n-1)) = 1;
     even_domain(0,0)     = 1;
     even_domain(0,1)     = 1;
 
-    even_domain(3,5) = 1;
-    even_domain(3,6) = 1;
-    even_domain(3,7) = 1;
-
-    even_domain(6,7) = 1;
-    even_domain(7,7) = 1;
-    even_domain(8,7) = 1;
-    even_domain(9,7) = 1;
   }
 
   // here is where I might print out my picture of the initial domain
-  cout << "Initial:"<<endl; print_domain(even_domain);
+  cout << "Initial:"<< endl; print_domain(even_domain);
 
   Domain *odd, *even; // pointer swap magic
   odd = &odd_domain;
@@ -205,10 +197,10 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
   bottomleft_row[0] = old_domain(1,n);
   bottomright_row[0] = old_domain(m,n);
   
-  MPI_Isend(topleft_row, 1, MPI_CHAR, (myrank + size - n - 1)%size, topleft, comm, &request[4]);
-  MPI_Isend(topright_row, 1, MPI_CHAR, (myrank + size - n + 1)%size, topright, comm, &request[5]);
-  MPI_Isend(bottomleft_row, 1, MPI_CHAR, (myrank + n - 1)%size, topleft, comm, &request[6]);
-  MPI_Isend(bottomright_row, 1, MPI_CHAR, (myrank + n + 1)%size, topright, comm, &request[7]);
+  MPI_Isend(topleft_row, 1, MPI_CHAR, (myrank + size - n - 1)%size, bottomright, comm, &request[4]);
+  MPI_Isend(topright_row, 1, MPI_CHAR, (myrank + size - n + 1)%size, bottomleft, comm, &request[5]);
+  MPI_Isend(bottomleft_row, 1, MPI_CHAR, (myrank + n - 1)%size, topright, comm, &request[6]);
+  MPI_Isend(bottomright_row, 1, MPI_CHAR, (myrank + n + 1)%size, topleft, comm, &request[7]);
 
   char *topleft_halo = new char[1];
   char *topright_halo = new char[1];
@@ -226,7 +218,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
   MPI_Irecv(bottomright_halo, 1, MPI_CHAR,    (myrank + n + 1)%size, bottomright, comm, &request[14]);
   MPI_Irecv(bottom_halo, n, MPI_CHAR, (myrank+1)%size, bottom, comm, &request[15]);
 
-  MPI_Waitall(16, request, MPI_STATUSES_IGNORE); // complete all 4 transfers
+  MPI_Waitall(16, request, MPI_STATUSES_IGNORE); // complete all 16 transfers
 
   // at this point, I have halos from my neighbors
 
@@ -285,7 +277,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
         if(left_halo[(j+delta_j+old_domain.cols())%old_domain.cols()])
           ++neighbor_count;
       }
-      char mycell = old_domain(0,j);
+      char mycell = old_domain(j,0);
       char newcell = 0;
       if(mycell == 0)
         newcell = (neighbor_count == 3) ? 1 : 0;
@@ -314,7 +306,7 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
         if(right_halo[(j+delta_j+old_domain.cols())%old_domain.cols()])
           ++neighbor_count;
       }
-      char mycell = old_domain(0,j);
+      char mycell = old_domain(j,n-1);
       char newcell = 0;
       if(mycell == 0)
         newcell = (neighbor_count == 3) ? 1 : 0;
@@ -322,43 +314,144 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
         newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
       new_domain(j,n-1) = newcell;
   }
-  
 
-  // i=m-1:
   for(int j = 0; j < new_domain.cols(); ++j)
   {
       neighbor_count = 0;
-
       for(int delta_i = -1; delta_i <= 0; delta_i++)
       {
-	for(int delta_j = -1; delta_j <= 1; delta_j++)
-	{
-	  if(delta_i == 0 && delta_j == 0) //skip self
-	    continue;
-
-	  // this first implementation is sequental and wraps the vertical
-	  // and horizontal dimensions without dealing with halos (ghost cells)
-	  if(old_domain((m-1 + delta_i),
-			(j+delta_j+old_domain.cols())%old_domain.cols()))
-	     ++neighbor_count;
-	}
+        for(int delta_j = -1; delta_j <= 1; delta_j++)
+        {
+          if(delta_i == 0 && delta_j == 0) //skip self
+            continue;
+          // this first implementation is sequental and wraps the vertical
+          // and horizontal dimensions without dealing with halos (ghost cells)
+          if(old_domain((m-1 + delta_i),
+                        (j+delta_j+old_domain.cols())%old_domain.cols()))
+             ++neighbor_count;
+        }
       }
       for(int delta_j = -1; delta_j <= 1; delta_j++)
       {
         if(bottom_halo[(j+delta_j+old_domain.cols())%old_domain.cols()])
-	  ++neighbor_count;
+          ++neighbor_count;
       }
-     	 
       char mycell = old_domain(m-1,j);
       char newcell = 0;
       if(mycell == 0)
-	newcell = (neighbor_count == 3) ? 1 : 0;
+        newcell = (neighbor_count == 3) ? 1 : 0;
       else
-	newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
-      
+        newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
       new_domain(m-1,j) = newcell;
-  } // int j
+  } 
+ 
+  neighbor_count = 0;
+      for(int delta_i = -1; delta_i <= 0; delta_i++)
+      {
+        for(int delta_j = -1; delta_j <= 1; delta_j++)
+        {
+          if(delta_i == 0 && delta_j == 0) //skip self
+            continue;
+          // this first implementation is sequental and wraps the vertical
+          // and horizontal dimensions without dealing with halos (ghost cells)
+          if(old_domain((1 + delta_i),
+                        (1 + delta_j)))
+             ++neighbor_count;
+        }
+      }
+      for(int delta_j = -1; delta_j <= 1; delta_j++)
+      {
+
+        if(topleft_halo[0])
+          ++neighbor_count;
+      }
+      char mycell = old_domain(1,1);
+      char newcell = 0;
+      if(mycell == 0)
+        newcell = (neighbor_count == 3) ? 1 : 0;
+      else
+        newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
+      new_domain(1,1) = newcell;
   // these update as in sequential case:
+  neighbor_count = 0;
+      for(int delta_i = -1; delta_i <= 0; delta_i++)
+      {
+        for(int delta_j = -1; delta_j <= 1; delta_j++)
+        {
+          if(delta_i == 0 && delta_j == 0) //skip self
+            continue;
+          // this first implementation is sequental and wraps the vertical
+          // and horizontal dimensions without dealing with halos (ghost cells)
+          if(old_domain((m + delta_i),
+                        (1 + delta_j)))
+             ++neighbor_count;
+        }
+      }
+      for(int delta_j = -1; delta_j <= 1; delta_j++)
+      {
+        if(topright_halo[0])
+          ++neighbor_count;
+      }
+      mycell = old_domain(m,1);
+      newcell = 0;
+      if(mycell == 0)
+        newcell = (neighbor_count == 3) ? 1 : 0;
+      else
+        newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
+      new_domain(m,1) = newcell;
+      neighbor_count = 0;
+      for(int delta_i = -1; delta_i <= 0; delta_i++)
+      {
+        for(int delta_j = -1; delta_j <= 1; delta_j++)
+        {
+          if(delta_i == 0 && delta_j == 0) //skip self
+            continue;
+          // this first implementation is sequental and wraps the vertical
+          // and horizontal dimensions without dealing with halos (ghost cells)
+          if(old_domain((1 + delta_j),
+                        (n + delta_i)))
+             ++neighbor_count;
+        }
+      }
+      for(int delta_j = -1; delta_j <= 1; delta_j++)
+      {
+        if(bottomleft_halo[0])
+          ++neighbor_count;
+      }
+      mycell = old_domain(1,n);
+      newcell = 0;
+      if(mycell == 0)
+        newcell = (neighbor_count == 3) ? 1 : 0;
+      else
+        newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
+      new_domain(1,n) = newcell;
+      neighbor_count = 0;
+      for(int delta_i = -1; delta_i <= 0; delta_i++)
+      {
+        for(int delta_j = -1; delta_j <= 1; delta_j++)
+        {
+          if(delta_i == 0 && delta_j == 0) //skip self
+            continue;
+          // this first implementation is sequental and wraps the vertical
+          // and horizontal dimensions without dealing with halos (ghost cells)
+          if(old_domain((m + delta_j),
+                        (n + delta_i)))
+             ++neighbor_count;
+        }
+      }
+      for(int delta_j = -1; delta_j <= 1; delta_j++)
+      {
+        if(bottomright_halo[0])
+          ++neighbor_count;
+      }
+      mycell = old_domain(m,n);
+      newcell = 0;
+      if(mycell == 0)
+        newcell = (neighbor_count == 3) ? 1 : 0;
+      else
+        newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
+      new_domain(m,n) = newcell;
+  // these update as in sequential case
   for(int i = 1; i < (new_domain.rows()-1); ++i)
   {
     for(int j = 0; j < new_domain.cols(); ++j)
@@ -379,13 +472,12 @@ void update_domain(Domain &new_domain, Domain &old_domain, int size, int myrank,
 	    
 	}
       }
-      char mycell = old_domain(i,j);
-      char newcell = 0;
+      mycell = old_domain(i,j);
+      newcell = 0;
       if(mycell == 0)
 	newcell = (neighbor_count == 3) ? 1 : 0;
       else
 	newcell = ((neighbor_count == 2)||(neighbor_count == 3)) ? 1 : 0;
-      
       new_domain(i,j) = newcell;
     } // int j
   } // int i
